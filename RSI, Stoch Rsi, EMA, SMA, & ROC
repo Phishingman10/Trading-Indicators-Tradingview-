@@ -1,0 +1,45 @@
+
+
+//@version=5
+indicator("RSI, Stoch Rsi, EMA, & SMA")
+
+ma(source, length, type) =>
+    switch type
+        "SMA" => ta.sma(source, length)
+        "EMA" => ta.ema(source, length)
+        
+rsiLengthInput = input.int(14, minval=1, title="RSI Length", group="RSI Settings")
+rsiSourceInput = input.source(close, "Source", group="RSI Settings")
+maTypeInput = input.string("SMA", title="MA Type", options=["SMA",  "EMA" ], group="MA Settings")
+maLengthInput = input.int(14, title="MA Length", group="MA Settings")
+
+up = ta.rma(math.max(ta.change(rsiSourceInput), 0), rsiLengthInput)
+down = ta.rma(-math.min(ta.change(rsiSourceInput), 0), rsiLengthInput)
+rsi = down == 0 ? 100 : up == 0 ? 0 : 100 - (100 / (1 + up / down))
+rsiMA = ma(rsi, maLengthInput, maTypeInput)
+
+plot(rsi, "RSI", color=#32CD32)
+plot(rsiMA, "RSI-based MA", color=#FF1493)
+rsiUpperBand = hline(50, "Middle Zone", color=#808080)
+
+K = input.int(3, "K", minval=1)
+D = input.int(3, "D", minval=1)
+lengthRSI = input.int(14, "RSI Length", minval=1)
+lengthStoch = input.int(14, "Stochastic Length", minval=1)
+src = input(close, title="RSI Source")
+rsi1 = ta.rsi(src, lengthRSI)
+k = ta.sma(ta.stoch(rsi1, rsi1, rsi1, lengthStoch),K)
+d = ta.sma(k,D)
+plot(k, "K", color=#2962FF)
+plot(d, "D", color=#FF6D00)
+top = hline(80, "Upper Band", color=#787B86)
+hline(50, "Middle Band", color=color.new(#787B86, 50))
+bottom = hline(20, "Lower Band", color=#787B86)
+fill(top,bottom, color=color.rgb(207, 159, 255,90), title="Background")
+
+length = input.int(9, minval=1)
+source = input(close, "Source")
+roc = 100 * (source - source[length])/source[length]
+plot(roc, color=#FFFFFF, title="ROC")
+hline(0, color=#808080, title="Zero Line")
+
