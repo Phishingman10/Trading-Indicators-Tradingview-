@@ -1,0 +1,134 @@
+
+
+
+//@version=5
+indicator('Trendline and Support', overlay=true)
+
+source = input(close)
+length = input.int(100, minval=1)
+offset = input.int(0, minval=0)
+dev = input(2.0, 'Deviation')
+smoothing = input.int(1, minval=1)
+mtf_val = input.timeframe('', 'Resolution')
+
+//Thickness of lines
+line_thick = input.int(1, 'S&R Thickness', minval=1, maxval=1)
+signals = input.string('Recent', 'Signals Display', options=['Recent', 'All'])
+p = input.string('Lime', 'Up Color', options=['Red', 'Lime', 'Orange', 'Teal', 'Yellow', 'White', 'Black'])
+q = input.string('Red', 'Down Color', options=['Red', 'Lime', 'Orange', 'Teal', 'Yellow', 'White', 'Black'])
+goto = input(0, 'End At Bar Index')
+
+cc(x) =>
+    x == 'Red' ? color.red : x == 'Lime' ? color.lime : x == 'Orange' ? color.orange : x == 'Teal' ? color.teal : x == 'Yellow' ? color.yellow : x == 'Black' ? color.black : color.white
+data(x) =>
+    ta.sma(request.security(syminfo.tickerid, mtf_val != '' ? mtf_val : timeframe.period, x), smoothing)
+
+linreg = data(ta.linreg(source, length, offset))
+linreg_p = data(ta.linreg(source, length, offset + 1))
+plot(linreg, 'Regression Line', cc(linreg > linreg[1] ? p : q), editable=false)
+
+x = bar_index
+slope = linreg - linreg_p
+intercept = linreg - x * slope
+deviationSum = 0.0
+for i = 0 to length - 1 by 1
+    deviationSum += math.pow(source[i] - (slope * (x - i) + intercept), 2)
+    deviationSum
+deviation = math.sqrt(deviationSum / length)
+x1 = x - length
+x2 = x
+y1 = slope * (x - length) + intercept
+y2 = linreg
+
+updating = goto <= 0 or x < goto
+
+if updating
+    line b = line.new(x1, y1, x2, y2, xloc.bar_index, extend.right, color.aqua, width=line_thick)
+    line.delete(b[1])
+    line dp = line.new(x1, deviation * dev + y1, x2, deviation * dev + y2, xloc.bar_index, extend.right, cc(q), width=line_thick)
+    line.delete(dp[1])
+    line dm = line.new(x1, -deviation * dev + y1, x2, -deviation * dev + y2, xloc.bar_index, extend.right, cc(p), width=line_thick)
+    line.delete(dm[1])
+
+
+line_width = 3
+sr_tf = input.timeframe('', title='S/R Timeframe')
+ 
+
+rsi_src = close
+len = 9
+up1 = ta.rma(math.max(ta.change(rsi_src), 0), len)
+down1 = ta.rma(-math.min(ta.change(rsi_src), 0), len)
+legacy_rsi = down1 == 0 ? 100 : up1 == 0 ? 0 : 100 - 100 / (1 + up1 / down1)
+ 
+
+length1 = 1
+src1 = ta.hma(open, 5)[1] 
+src2 = ta.hma(close, 12)
+momm1 = ta.change(src1)
+momm2 = ta.change(src2)
+f1(m, n) =>
+    m >= n ? m : 0.0
+f2(m, n) =>
+    m >= n ? 0.0 : -m
+m1 = f1(momm1, momm2)
+m2 = f2(momm1, momm2)
+sm1 = math.sum(m1, length1)
+sm2 = math.sum(m2, length1)
+percent(nom, div) =>
+    100 * nom / div
+cmo_new = percent(sm1 - sm2, sm1 + sm2)
+ 
+
+len5 = 2
+h = ta.highest(len5)
+h1 = ta.dev(h, len5) ? na : h
+hpivot = fixnan(h1)
+l = ta.lowest(len5)
+l1 = ta.dev(l, len5) ? na : l
+lpivot = fixnan(l1)
+ 
+//Calc Values
+rsi_new = ta.rsi(close, 9)
+lpivot_new = lpivot 
+hpivot_new = hpivot
+ 
+sup = rsi_new < 25 and cmo_new > 50 and lpivot_new
+res = rsi_new > 75 and cmo_new < -50 and hpivot_new
+calcXup() =>
+    var xup = 0.0
+    xup := sup ? low : xup[1]
+    xup
+calcXdown() =>
+    var xdown = 0.0
+    xdown := res ? high : xdown[1]
+    xdown
+ 
+
+tf1 = request.security(syminfo.tickerid, sr_tf, calcXup(), lookahead=barmerge.lookahead_on)
+tf2 = request.security(syminfo.tickerid, sr_tf, calcXdown(), lookahead=barmerge.lookahead_on)
+ 
+
+var tf1_line = line.new(0, 0, 0, 0)
+var tf1_bi_start = 0
+var tf1_bi_end = 0
+tf1_bi_start := ta.change(tf1) ? bar_index : tf1_bi_start[1]
+tf1_bi_end := ta.change(tf1) ? tf1_bi_start : bar_index
+if ta.change(tf1)
+    tf1_line := line.new(tf1_bi_start, tf1, tf1_bi_end, tf1, color=color.green, width=line_width)
+    tf1_line
+line.set_x2(tf1_line, tf1_bi_end)
+ 
+var tf2_line = line.new(0, 0, 0, 0)
+var tf2_bi_start = 0
+var tf2_bi_end = 0
+tf2_bi_start := ta.change(tf2) ? bar_index : tf2_bi_start[1]
+tf2_bi_end := ta.change(tf2) ? tf2_bi_start : bar_index
+if ta.change(tf2)
+    tf2_line := line.new(tf2_bi_start, tf2, tf2_bi_end, tf2, color=color.orange, width=line_width)
+    tf2_line
+line.set_x2(tf2_line, tf2_bi_end)
+ 
+alertcondition(ta.change(tf1) != 0 or ta.change(tf2) != 0 ,title="New S/R line", message = "New S/R line" )
+
+
